@@ -1761,10 +1761,6 @@ function FeatherLite:Window(opts)
         if type(o) ~= "table" then o = { Name = o, Callback = callback } end
         local r = newRow(self, o, 14)
         r.row.ClipsDescendants = true
-        -- ripple lives in its own box, otherwise the row grows with it while it animates
-        local rippleBox = make("Frame", {
-            Parent = r.row, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 2,
-        })
         T(r.name, { TextColor3 = o.Danger and "Danger" or "Accent" })
         local arrow = make("Frame", {
             Parent = r.ctrl, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0),
@@ -1786,17 +1782,24 @@ function FeatherLite:Window(opts)
         on(hit.InputBegan, function(input)
             local kind = input.UserInputType
             if kind ~= Enum.UserInputType.MouseButton1 and kind ~= Enum.UserInputType.Touch then return end
+            -- the ripple is drawn on the window, not inside the row: anything growing inside a row makes the row grow
             local total = fitScale.Scale * popScale.Scale
-            local x = (input.Position.X - r.row.AbsolutePosition.X) / total
-            local y = (input.Position.Y - r.row.AbsolutePosition.Y) / total
+            local rp, rs = r.row.AbsolutePosition, r.row.AbsoluteSize
+            local box = make("Frame", {
+                Parent = main, BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 3,
+                Position = UDim2.fromOffset((rp.X - main.AbsolutePosition.X) / total, (rp.Y - main.AbsolutePosition.Y) / total),
+                Size = UDim2.fromOffset(rs.X / total, rs.Y / total),
+            })
+            local x = (input.Position.X - rp.X) / total
+            local y = (input.Position.Y - rp.Y) / total
             local ripple = make("Frame", {
-                Parent = rippleBox, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y),
+                Parent = box, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y),
                 Size = UDim2.fromOffset(0, 0), BackgroundColor3 = o.Danger and theme.Danger or theme.Accent,
                 BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 2,
             }, { corner("full") })
             local d = r.row.AbsoluteSize.X / total * 2.2
             tw(ripple, 0.6, { Size = UDim2.fromOffset(d, d), BackgroundTransparency = 1 }, Enum.EasingStyle.Quad)
-            task.delay(0.62, function() ripple:Destroy() end)
+            task.delay(0.62, function() box:Destroy() end)
         end)
         on(hit.MouseButton1Click, function() safe(o.Callback) end)
         on(hit.MouseEnter, function() tw(r.hover, 0.15, { BackgroundTransparency = theme == FeatherLite.Themes.Light and 0.97 or 0.965 }) end)
