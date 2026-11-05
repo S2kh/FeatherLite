@@ -1126,7 +1126,13 @@ function FeatherLite:Window(opts)
         return tab
     end
 
-    local function register(o, obj)
+    local function register(o, obj, r)
+        if r then
+            function obj:SetLocked(v)
+                obj.Locked = v == true
+                r.lock(obj.Locked)
+            end
+        end
         if o.Flag then
             Window.Flags[o.Flag] = obj
         end
@@ -1188,7 +1194,22 @@ function FeatherLite:Window(opts)
         on(row.MouseLeave, function() tw(hover, 0.25, { BackgroundTransparency = 1 }) end)
         table.insert(g.items, { name = name.Text, row = row })
         local function tap(fn) on(line.MouseButton1Click, fn) end
-        return { row = row, line = line, name = name, desc = desc, ctrl = ctrl, fold = fold, hover = hover, tap = tap }
+        -- greyed out + not clickable while locked
+        local veil = make("TextButton", {
+            Parent = row, Size = UDim2.fromScale(1, 1), Text = "", AutoButtonColor = false,
+            BackgroundTransparency = 1, Visible = false, ZIndex = 9,
+        })
+        T(veil, { BackgroundColor3 = "Card" })
+        local function lock(v)
+            if v then
+                veil.Visible = true
+                tw(veil, 0.2, { BackgroundTransparency = 0.45 })
+            else
+                tw(veil, 0.2, { BackgroundTransparency = 1 })
+                task.delay(0.21, function() if veil.BackgroundTransparency > 0.99 then veil.Visible = false end end)
+            end
+        end
+        return { row = row, line = line, name = name, desc = desc, ctrl = ctrl, fold = fold, hover = hover, tap = tap, lock = lock }
     end
 
     local function openFold(r, height, state)
@@ -1266,7 +1287,7 @@ function FeatherLite:Window(opts)
             local entry = { key = toKey(o.Keybind) }
             local _, cap = keycap(r.ctrl, entry.key, function(k) entry.key = k end, { Position = UDim2.new(1, -62, 0.5, 0) })
             function entry.press(down)
-                if not down then return end
+                if not down or obj.Locked then return end
                 obj:Toggle()
             end
             table.insert(binds, entry)
@@ -1275,7 +1296,7 @@ function FeatherLite:Window(opts)
         end
         if value then safe(o.Callback, true) end
         table.insert(toggles, obj)
-        register(o, obj)
+        register(o, obj, r)
         return obj
     end
 
@@ -1374,7 +1395,7 @@ function FeatherLite:Window(opts)
         end)
         render(false)
         if o.Default ~= nil then safe(o.Callback, value) end
-        register(o, obj)
+        register(o, obj, r)
         return obj
     end
 
@@ -1540,7 +1561,7 @@ function FeatherLite:Window(opts)
         hook(function() paint(false) end)
         build()
         if (multi and next(selected)) or single then fire() end
-        register(o, obj)
+        register(o, obj, r)
         return obj
     end
 
@@ -1646,7 +1667,7 @@ function FeatherLite:Window(opts)
         on(swatch.MouseButton1Click, flipOpen)
         r.tap(flipOpen)
         render()
-        register(o, obj)
+        register(o, obj, r)
         return obj
     end
 
@@ -1684,7 +1705,7 @@ function FeatherLite:Window(opts)
             if not silent then safe(o.Callback, o.Numeric and tonumber(box.Text) or box.Text, false) end
         end
         function obj:Get() return o.Numeric and tonumber(box.Text) or box.Text end
-        register(o, obj)
+        register(o, obj, r)
         return obj
     end
 
@@ -1717,7 +1738,9 @@ function FeatherLite:Window(opts)
             safe(o.Changed, k)
             return k
         end) end
+        local obj = { Type = "Keybind" }
         function entry.press(down)
+            if obj.Locked then return end
             if o.Hold then
                 safe(o.Callback, down)
             elseif down then
@@ -1725,13 +1748,12 @@ function FeatherLite:Window(opts)
             end
         end
         table.insert(binds, entry)
-        local obj = { Type = "Keybind" }
         function obj:Set(k)
             entry.key = toKey(k)
             cap.set(entry.key)
         end
         function obj:Get() return entry.key end
-        register(o, obj)
+        register(o, obj, r)
         return obj
     end
 
@@ -1739,6 +1761,10 @@ function FeatherLite:Window(opts)
         if type(o) ~= "table" then o = { Name = o, Callback = callback } end
         local r = newRow(self, o, 14)
         r.row.ClipsDescendants = true
+        -- ripple lives in its own box, otherwise the row grows with it while it animates
+        local rippleBox = make("Frame", {
+            Parent = r.row, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 2,
+        })
         T(r.name, { TextColor3 = o.Danger and "Danger" or "Accent" })
         local arrow = make("Frame", {
             Parent = r.ctrl, AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0),
@@ -1764,7 +1790,7 @@ function FeatherLite:Window(opts)
             local x = (input.Position.X - r.row.AbsolutePosition.X) / total
             local y = (input.Position.Y - r.row.AbsolutePosition.Y) / total
             local ripple = make("Frame", {
-                Parent = r.row, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y),
+                Parent = rippleBox, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y),
                 Size = UDim2.fromOffset(0, 0), BackgroundColor3 = o.Danger and theme.Danger or theme.Accent,
                 BackgroundTransparency = 0.82, BorderSizePixel = 0, ZIndex = 2,
             }, { corner("full") })
@@ -1777,6 +1803,10 @@ function FeatherLite:Window(opts)
         on(hit.MouseLeave, function() tw(r.hover, 0.25, { BackgroundTransparency = 1 }) end)
         local obj = { Type = "Button" }
         function obj:SetText(t) r.name.Text = tostring(t) end
+        function obj:SetLocked(v)
+            obj.Locked = v == true
+            r.lock(obj.Locked)
+        end
         lastBuild = os.clock()
         return obj
     end

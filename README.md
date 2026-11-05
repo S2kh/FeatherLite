@@ -82,6 +82,8 @@ They all take a table. Give something a `Flag` and it gets saved in configs. `De
 
 Putting `Keybind = Enum.KeyCode.X` on a toggle adds a little key button next to the switch. Click it and press a key to change it, esc or backspace clears it. Multi dropdowns give you a list of whatever's picked.
 
+Every element except labels has `:SetLocked(true/false)`. A locked one gets greyed out and can't be clicked, handy for sub settings of something that's turned off.
+
 ## Settings
 
 Every window gets a Settings page at the bottom of the sidebar with the theme, window transparency, menu size, menu key, notifications, configs (save, load, delete, load on start) and an unload button. Those settings get remembered per script.
