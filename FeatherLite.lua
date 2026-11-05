@@ -302,7 +302,7 @@ function FeatherLite:Window(opts)
     })
     parentGui(gui)
 
-    local size = opts.Size or Vector2.new(860, 580)
+    local size = opts.Size or Vector2.new(1034, 624)
     local MIN_W, MIN_H, SIDEBAR_W = 640, 420, 220
     local MOBILE = opts.Mobile
     if MOBILE == nil then MOBILE = UIS.TouchEnabled and not UIS.KeyboardEnabled end
