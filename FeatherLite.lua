@@ -7,6 +7,7 @@ local FeatherLite = { Version = "2.0.0", Flags = {} }
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
@@ -816,6 +817,21 @@ function FeatherLite:Window(opts)
         end
     end
     function Window:IsVisible() return visible end
+
+    -- first person and shift lock games keep the mouse stuck in the middle, so free it while the menu is open
+    local mouseSaved
+    make("TextButton", { Parent = root, Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, Text = "", Modal = true, Selectable = false })
+    on(RunService.RenderStepped, function()
+        if visible then
+            if not mouseSaved then mouseSaved = { UIS.MouseBehavior, UIS.MouseIconEnabled } end
+            if UIS.MouseBehavior ~= Enum.MouseBehavior.Default then UIS.MouseBehavior = Enum.MouseBehavior.Default end
+            if not UIS.MouseIconEnabled then UIS.MouseIconEnabled = true end
+        elseif mouseSaved then
+            UIS.MouseBehavior, UIS.MouseIconEnabled = mouseSaved[1], mouseSaved[2]
+            mouseSaved = nil
+        end
+    end)
+
     on(closeBtn.MouseEnter, function() tw(closeScale, 0.25, { Scale = 1.1 }, Enum.EasingStyle.Back) end)
     on(closeBtn.MouseLeave, function() tw(closeScale, 0.2, { Scale = 1 }) end)
     on(closeBtn.MouseButton1Down, function() tw(closeScale, 0.1, { Scale = 0.88 }) end)
@@ -1900,6 +1916,10 @@ function FeatherLite:Window(opts)
         listening = nil
         for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
         table.clear(conns)
+        if mouseSaved then
+            UIS.MouseBehavior, UIS.MouseIconEnabled = mouseSaved[1], mouseSaved[2]
+            mouseSaved = nil
+        end
         local i = table.find(registry, Window)
         if i then table.remove(registry, i) end
         if instant then
