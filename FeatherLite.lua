@@ -821,12 +821,30 @@ function FeatherLite:Window(opts)
     -- first person and shift lock games keep the mouse stuck in the middle, so free it while the menu is open
     local mouseSaved
     -- ask roblox's camera if it wants the mouse locked right now (first person or shift lock)
+    local function loaded(m)
+        if not getloadedmodules then return false end
+        for _, x in ipairs(getloadedmodules()) do if x == m then return true end end
+        return false
+    end
+    local function cameras()
+        -- classic layout: PlayerScripts.PlayerModule
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local pm = ps and ps:FindFirstChild("PlayerModule")
+        if pm then
+            local m = require(pm)
+            if type(m) == "table" and m.GetCameras then return m:GetCameras() end
+        end
+        -- newer layout: StarterPlayer.PlayerModule.CameraModule, only if the game already loaded it
+        local sp = game:GetService("StarterPlayer"):FindFirstChild("PlayerModule")
+        local cm = sp and sp:FindFirstChild("CameraModule")
+        if cm and loaded(cm) then
+            local m = require(cm)
+            if type(m) == "table" then return m end
+        end
+    end
     local function cameraWantsLock()
         local ok, res = pcall(function()
-            local ps = LocalPlayer:FindFirstChild("PlayerScripts")
-            local pm = ps and ps:FindFirstChild("PlayerModule")
-            if not pm then return nil end
-            local cams = require(pm):GetCameras()
+            local cams = cameras()
             local ctrl = cams and cams.activeCameraController
             if not ctrl then return nil end
             local lock = cams.activeMouseLockController
