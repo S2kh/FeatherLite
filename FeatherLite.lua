@@ -820,15 +820,50 @@ function FeatherLite:Window(opts)
 
     -- first person and shift lock games keep the mouse stuck in the middle, so free it while the menu is open
     local mouseSaved
+    -- ask roblox's camera if it wants the mouse locked right now (first person or shift lock)
+    local function cameraWantsLock()
+        local ok, res = pcall(function()
+            local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+            local pm = ps and ps:FindFirstChild("PlayerModule")
+            if not pm then return nil end
+            local cams = require(pm):GetCameras()
+            local ctrl = cams and cams.activeCameraController
+            if not ctrl then return nil end
+            local lock = cams.activeMouseLockController
+            return ctrl.inFirstPerson == true or (lock ~= nil and lock:GetIsMouseLocked() == true)
+        end)
+        if ok then return res end
+        return nil
+    end
+    -- the camera can change while the menu is open, so don't put back a stale lock or a hidden cursor
+    local function restoreMouse()
+        if not mouseSaved then return end
+        local behavior, icon = mouseSaved[1], mouseSaved[2]
+        mouseSaved = nil
+        local want = cameraWantsLock()
+        if want == true then
+            behavior = Enum.MouseBehavior.LockCenter
+        elseif want == false and behavior == Enum.MouseBehavior.LockCenter then
+            behavior = Enum.MouseBehavior.Default
+        end
+        if behavior == Enum.MouseBehavior.Default then icon = true end
+        UIS.MouseBehavior, UIS.MouseIconEnabled = behavior, icon
+    end
     make("TextButton", { Parent = root, Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1, Text = "", Modal = true, Selectable = false })
     on(RunService.RenderStepped, function()
         if visible then
             if not mouseSaved then mouseSaved = { UIS.MouseBehavior, UIS.MouseIconEnabled } end
-            if UIS.MouseBehavior ~= Enum.MouseBehavior.Default then UIS.MouseBehavior = Enum.MouseBehavior.Default end
-            if not UIS.MouseIconEnabled then UIS.MouseIconEnabled = true end
+            -- something locked or hid the mouse since last frame: that's what it wants after we close
+            if UIS.MouseBehavior ~= Enum.MouseBehavior.Default then
+                mouseSaved[1] = UIS.MouseBehavior
+                UIS.MouseBehavior = Enum.MouseBehavior.Default
+            end
+            if not UIS.MouseIconEnabled then
+                mouseSaved[2] = false
+                UIS.MouseIconEnabled = true
+            end
         elseif mouseSaved then
-            UIS.MouseBehavior, UIS.MouseIconEnabled = mouseSaved[1], mouseSaved[2]
-            mouseSaved = nil
+            restoreMouse()
         end
     end)
 
@@ -1916,10 +1951,7 @@ function FeatherLite:Window(opts)
         listening = nil
         for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
         table.clear(conns)
-        if mouseSaved then
-            UIS.MouseBehavior, UIS.MouseIconEnabled = mouseSaved[1], mouseSaved[2]
-            mouseSaved = nil
-        end
+        restoreMouse()
         local i = table.find(registry, Window)
         if i then table.remove(registry, i) end
         if instant then
